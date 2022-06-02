@@ -6,10 +6,12 @@ library(roxygen2)
 # Starting values
 mindate <- as.Date("2022-05-30")
 maxdate <- as.Date("2022-08-20")
-sq_start <- 110L
-pr_start <- 50L
-bp_start <- 60L
-dl_start <- 135L
+
+start_values <- list("squat" = 110L,
+                     "press" = 50L,
+                     "bench" = 60L,
+                     "deadlift" = 135L,
+                     "powerclean" = 50L)
 
 # Date window & training days
 date <- seq.Date(mindate, maxdate, "day")
@@ -26,10 +28,14 @@ nlp_tbl <- tibble(date, wday, t_week) %>%
 #'
 #' @examples
 #' movement <- "squat"
+#' df <- nlp_tbl
+#' calculate_increments(df, "squat")
 
 
-calculate_increments <- function(df, movement = c("squat", "press", "bench", "deadlift", "powerclean")) {
+calculate_increments <- function(df, movement = c("squat", "press", "bench", "deadlift", "powerclean"), start_conf = start_values) {
   movement <- match.arg(movement)
+  start_value <- start_conf[[movement]]
+  
   increment <- function(df, movement) {
     switch(movement,
            squat = case_when(df,
@@ -38,11 +44,10 @@ calculate_increments <- function(df, movement = c("squat", "press", "bench", "de
                              TRUE ~ 2.5),
            press = case_when(df,
                              t_week == 1 ~ 0,
-                             t_week %in% 2:3 ~ 5,
                              TRUE ~ 2.5),
            bench = case_when(df,
                              t_week == 1 ~ 0,
-                             t_week %in% 2:3 ~ 5,
+                             t_week == 2 ~ 5,
                              TRUE ~ 2.5),
            deadlift = case_when(df,
                              t_week == 1 ~ 0,
@@ -50,7 +55,6 @@ calculate_increments <- function(df, movement = c("squat", "press", "bench", "de
                              TRUE ~ 2.5),
            powerclean = case_when(df,
                              t_week == 1 ~ 0,
-                             t_week %in% 2:3 ~ 5,
                              TRUE ~ 2.5))
   }
   
@@ -60,28 +64,43 @@ calculate_increments <- function(df, movement = c("squat", "press", "bench", "de
                             movement == "deadlift" ~ "A",
                             movement == "powerclean" ~ "B")
   
-  df_incr <- df %>%
+  df %>%
     filter(set %in% selected_set) %>%
-    mutate(dl = dl_start,
-           incr = case_when(t_week == 1 ~ 0,
-                            t_week %in% 2:3 ~ 5,
-                            TRUE ~ 2.5)) %>%
+    mutate(incr = switch(!!movement,
+                         squat = case_when(t_week == 1 ~ 0,
+                                           t_week %in% 2 ~ 5,
+                                           TRUE ~ 2.5),
+                         press = case_when(t_week == 1 ~ 0,
+                                           TRUE ~ 2.5),
+                         bench = case_when(t_week == 1 ~ 0,
+                                           t_week == 2 ~ 5,
+                                           TRUE ~ 2.5),
+                         deadlift = case_when(t_week == 1 ~ 0,
+                                              t_week %in% 2:3 ~ 5,
+                                              TRUE ~ 2.5),
+                         powerclean = case_when(t_week == 1 ~ 0,
+                                                TRUE ~ 2.5))) %>%
     mutate(cumincr = cumsum(incr),
-           dl = dl+cumincr) %>%
-    select(date, dl)
+           {{movement}} := start_value+cumincr) %>%
+    select(date, !!movement)
 }
 
-# Deadlift
+# Increments
+nlp_sq <- nlp_tbl %>%
+  calculate_increments("squat")
+nlp_pr <- nlp_tbl %>%
+  calculate_increments("press")
+nlp_bp <- nlp_tbl %>%
+  calculate_increments("bench")
 nlp_dl <- nlp_tbl %>%
-  filter(set == "A") %>%
-  mutate(dl = dl_start,
-         incr = case_when(t_week == 1 ~ 0,
-                          t_week %in% 2:3 ~ 5,
-                          TRUE ~ 2.5)) %>%
-  mutate(cumincr = cumsum(incr),
-         dl = dl+cumincr) %>%
-  select(date, dl)
-
+  calculate_increments("deadlift")
+nlp_pc <- nlp_tbl %>%
+  calculate_increments("powerclean")
 # Join movements
-nlp_tbl <- nlp_tbl %>%
-  left_join(nlp_dl, by = "date")
+
+nlp <- nlp_tbl %>%
+  left_join(nlp_sq, by = "date") %>%
+  left_join(nlp_pr, by = "date") %>%
+  left_join(nlp_bp, by = "date") %>%
+  left_join(nlp_dl, by = "date") %>%
+  left_join(nlp_pc, by = "date")
