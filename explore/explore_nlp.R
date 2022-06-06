@@ -7,11 +7,11 @@ library(roxygen2)
 mindate <- as.Date("2022-05-30")
 maxdate <- as.Date("2022-08-20")
 
-start_values <- list("squat" = 110L,
-                     "press" = 50L,
-                     "bench" = 60L,
-                     "deadlift" = 135L,
-                     "powerclean" = 50L)
+start_values <- list("squat" = 110,
+                     "press" = 50,
+                     "bench" = 67.5,
+                     "deadlift" = 135,
+                     "powerclean" = 50)
 
 # Date window & training days
 date <- seq.Date(mindate, maxdate, "day")
@@ -25,6 +25,7 @@ nlp_tbl <- tibble(date, wday, t_week) %>%
 
 # Movements
 
+#' Calculate NLP-increments. In development -- tweak increments if necessary
 #'
 #' @examples
 #' movement <- "squat"
@@ -36,28 +37,6 @@ calculate_increments <- function(df, movement = c("squat", "press", "bench", "de
   movement <- match.arg(movement)
   start_value <- start_conf[[movement]]
   
-  increment <- function(df, movement) {
-    switch(movement,
-           squat = case_when(df,
-                             t_week == 1 ~ 0,
-                             t_week %in% 2:3 ~ 5,
-                             TRUE ~ 2.5),
-           press = case_when(df,
-                             t_week == 1 ~ 0,
-                             TRUE ~ 2.5),
-           bench = case_when(df,
-                             t_week == 1 ~ 0,
-                             t_week == 2 ~ 5,
-                             TRUE ~ 2.5),
-           deadlift = case_when(df,
-                             t_week == 1 ~ 0,
-                             t_week %in% 2:3 ~ 5,
-                             TRUE ~ 2.5),
-           powerclean = case_when(df,
-                             t_week == 1 ~ 0,
-                             TRUE ~ 2.5))
-  }
-  
   selected_set <- case_when(movement == "squat" ~ c("A","B"),
                             movement == "press" ~ "A",
                             movement == "bench" ~ "B",
@@ -67,19 +46,23 @@ calculate_increments <- function(df, movement = c("squat", "press", "bench", "de
   df %>%
     filter(set %in% selected_set) %>%
     mutate(incr = switch(!!movement,
-                         squat = case_when(t_week == 1 ~ 0,
-                                           t_week %in% 2 ~ 5,
-                                           TRUE ~ 2.5),
-                         press = case_when(t_week == 1 ~ 0,
-                                           TRUE ~ 2.5),
-                         bench = case_when(t_week == 1 ~ 0,
-                                           t_week == 2 ~ 5,
-                                           TRUE ~ 2.5),
-                         deadlift = case_when(t_week == 1 ~ 0,
-                                              t_week %in% 2:3 ~ 5,
-                                              TRUE ~ 2.5),
-                         powerclean = case_when(t_week == 1 ~ 0,
-                                                TRUE ~ 2.5))) %>%
+                         squat = case_when(t_week == 1 & set == "B" ~ 2.5,
+                                           t_week %in% 2:4 ~ 2.5,
+                                           t_week %in% 4:8 & set == "A" ~ 2.5,
+                                           t_week > 8 & set == "A" ~ 1.25,
+                                           TRUE ~ 0),
+                         press = case_when(t_week %in% 1:3 ~ 2.5,
+                                           t_week > 3 ~ 1.25,
+                                           TRUE ~ 0),
+                         bench = case_when(t_week %in% 1:4 ~ 2.5,
+                                           t_week > 4 ~ 1.25,
+                                           TRUE ~ 0),
+                         deadlift = case_when(t_week %in% 2:3 ~ 5,
+                                              t_week > 3 ~ 2.5,
+                                              TRUE ~ 0),
+                         powerclean = case_when(t_week %in% 4:5 ~ 2.5,
+                                                t_week > 5 ~ 1.25,
+                                                TRUE ~ 0))) %>%
     mutate(cumincr = cumsum(incr),
            {{movement}} := start_value+cumincr) %>%
     select(date, !!movement)
@@ -104,3 +87,18 @@ nlp <- nlp_tbl %>%
   left_join(nlp_bp, by = "date") %>%
   left_join(nlp_dl, by = "date") %>%
   left_join(nlp_pc, by = "date")
+
+
+# Descriptive analysis
+
+ggplot() +
+  geom_point(data = nlp, aes(x = date, y = squat)) +
+  geom_point(data = nlp, aes(x = date, y = press)) +
+  geom_point(data = nlp, aes(x = date, y = bench)) +
+  geom_point(data = nlp, aes(x = date, y = deadlift)) +
+  geom_point(data = nlp, aes(x = date, y = powerclean)) +
+  ylab("Weight (kg)") +
+  xlab("Date") +
+  theme()
+
+
