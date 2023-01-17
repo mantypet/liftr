@@ -4,12 +4,12 @@ library(tsibble)
 library(roxygen2)
 
 # Starting values
-mindate <- as.Date("2022-05-30")
-maxdate <- as.Date("2022-08-20")
+mindate <- as.Date("2023-01-01")
+maxdate <- as.Date("2023-04-01")
 
-start_values <- list("squat" = 110,
+start_values <- list("squat" = 90,
                      "press" = 50,
-                     "bench" = 67.5,
+                     "bench" = 72.5,
                      "deadlift" = 135,
                      "powerclean" = 50)
 
@@ -21,7 +21,7 @@ t_week <- floor(t_day/7)+1
 
 nlp_tbl <- tibble(date, wday, t_week) %>%
   filter(wday %in% c("keskiviikko", "perjantai", "sunnuntai")) %>%
-  mutate(set = rep_len(c("A","B"), 35))
+  mutate(set = rep_len(c("A","B"), 39))
 
 # Movements
 
