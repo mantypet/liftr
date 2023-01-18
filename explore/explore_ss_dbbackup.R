@@ -4,6 +4,8 @@ library(tidyr)
 library(lubridate)
 library(stringr)
 library(ggplot2)
+library(purrr)
+library(slider)
 
 dbbackup <- read.csv(here::here("data/dbBackup_20230116.csv"))
 
@@ -61,16 +63,29 @@ lifts.squat <- lifts %>%
 ggplot(lifts.squat) +
   geom_point(aes(x = date, y = weight))
 
-# Date diff vs weight diff
+# NLPs
 
 lifts.squat.ana <- lifts.squat %>%
-  mutate(date_lag = lag(date),
-         weight_lag = lag(weight)) %>%
-  mutate(date_diff = as.numeric(date-date_lag),
-         weight_diff = weight-weight_lag)
+  mutate(nlp = case_when(date %in% seq.Date(as.Date("2018-11-22"), as.Date("2019-01-25"), "day") ~ "s1",
+                         date %in% seq.Date(as.Date("2019-01-31"), as.Date("2019-03-11"), "day") ~ "s2",
+                         date %in% seq.Date(as.Date("2019-05-13"), as.Date("2019-10-11"), "day") ~ "s3",
+                         date %in% seq.Date(as.Date("2019-12-15"), as.Date("2020-02-19"), "day") ~ "s4",
+                         date %in% seq.Date(as.Date("2020-06-12"), as.Date("2020-08-04"), "day") ~ "s5",
+                         date %in% seq.Date(as.Date("2020-08-31"), as.Date("2020-10-04"), "day") ~ "s6",
+                         date %in% seq.Date(as.Date("2022-06-01"), as.Date("2022-08-12"), "day") ~ "s7",
+                         TRUE ~ NA_character_)) %>%
+  filter(!is.na(nlp)) %>%
+  mutate(workout = 1) %>%
+  group_by(nlp) %>%
+  mutate(workout = cumsum(workout)) %>%
+  ungroup()
 
-lifts.squat.ana %>%
-  mutate(date_diff = ifelse(date_diff > 30, 30, date_diff)) %>%
-  ggplot() +
-  geom_point(aes(x = date_diff, y = weight_diff))
+  
+ggplot(lifts.squat.ana) +
+  geom_smooth(aes(x = workout, y = weight, color = nlp), se = TRUE, method = "lm") + 
+  geom_point(aes(x = workout, y = weight, color = nlp))
+  
+
+lm(weight ~ workout, data = lifts.squat.ana)
+
 
